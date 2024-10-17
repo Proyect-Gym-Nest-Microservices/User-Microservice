@@ -14,7 +14,7 @@ export class UserController {
     return this.userService.create(createUserDto);
   }
 
-  @MessagePattern('find.all.user')
+  @MessagePattern('find.all.users')
   findAll(@Payload() paginationDto:PaginationDto) {
     return this.userService.findAll(paginationDto);
   }
@@ -30,11 +30,11 @@ export class UserController {
 
   @MessagePattern('update.user')
   update(@Payload() updateUserDto: UpdateUserDto) {
-    return this.userService.update(updateUserDto.id, updateUserDto);
+    return this.userService.update( updateUserDto);
   }
 
   @MessagePattern('remove.user')
-  remove(@Payload() id: number) {
+  remove(@Payload() id: string) {
     return this.userService.remove(id);
   }
 }

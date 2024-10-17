@@ -110,8 +110,8 @@ export class UserService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto) {
-    const {id:_, ...user} = updateUserDto
+  async update(updateUserDto: UpdateUserDto) {
+    const {id, ...user} = updateUserDto
     try {
 
       const updatedUser = await this.user.update({
@@ -144,7 +144,36 @@ export class UserService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} user`;
+  async remove(id: string) {
+    try {
+      const updatedUser = await this.user.update({
+        where: { id, isActive: true },
+        data: { 
+          isActive: false,
+          updateAt: new Date() 
+        },
+      });
+  
+      if (!updatedUser) {
+        throw new RpcException({
+          message: `User with id ${id} not found or already inactive`,
+          status: HttpStatus.NOT_FOUND,
+        });
+      }
+  
+      return {
+        success: true,
+        message: `User with id ${id} has been deactivated`
+      };
+  
+    } catch (error) {
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      throw new RpcException({
+        status: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Internal server error',
+      });
+    }
   }
 }
