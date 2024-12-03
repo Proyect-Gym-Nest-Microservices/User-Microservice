@@ -14,26 +14,60 @@ datasource db {
 }
 
 model User {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  avatarUrl    String?
+  email        String        @unique
+  name         String
+  password     String
+  age          Int?
+  gender       Gender?
+  lastLogin   DateTime?
+  weight       Float? // Peso del usuario
+  height       Float?
+  fitnessLevel FitnessLevel? // Nivel de estado fisico
+  goal         Goal? // Objetivo del usuario (e.g. perder peso, ganar músculo)
+  injury       String? // Lesion
+  userType     UserType      @default(STUDENT)
 
-  avatarUrl String?
-
-  email String @unique
-
-  name String
-
-  password String
+  // Para agregar a favoritos 
+  // Referencias a otros microservicios, estos IDs son usados para hacer peticiones a los microservicios de Workout, Nutrition y Training Plan
+  nutritionIds    String[] @default([])
+  workoutIds      Int[]    @default([])
+  trainingPlanIds Int[]    @default([])
 
   roles Role[] @default([USER_ROLE])
 
-  isActive Boolean @default(true)
-
-  createAt DateTime @default(now())
-
-  updateAt DateTime @updatedAt
+  isActive Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-enum Role{
+enum Role {
   USER_ROLE
   ADMIN_ROLE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum FitnessLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum Goal {
+  LOSE_WEIGHT
+  GAIN_MUSCLE
+  IMPROVE_ENDURANCE
+  MAINTAIN
+}
+
+enum UserType {
+  STUDENT
+  PROFESSOR
+  ADMINISTRATION
 }

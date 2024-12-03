@@ -29,12 +29,53 @@ export class UserController {
   }
 
   @MessagePattern('update.user')
-  update(@Payload() updateUserDto: UpdateUserDto) {
-    return this.userService.update( updateUserDto);
+  update(@Payload() payload: { id: string, updateUserDto: UpdateUserDto }) {
+    return this.userService.update( payload.id, payload.updateUserDto);
   }
 
   @MessagePattern('remove.user')
   remove(@Payload() id: string) {
     return this.userService.remove(id);
+  }
+
+
+  @MessagePattern('calculate.total.users')
+  calculateTotalUsers() {
+    return this.userService.calculateTotalUsers();
+  }
+
+  @MessagePattern('calculate.new.users')
+  calculateNewUsers(
+    @Payload() payload: { startDate: Date; endDate: Date },
+  ) {
+    return this.userService.calculateNewUsers(
+      payload.startDate,
+      payload.endDate,
+    );
+  }
+
+  @MessagePattern('calculate.user.activity')
+  calculateUserActivity(
+    @Payload() payload: { startDate: Date; endDate: Date },
+  ) {
+    return this.userService.calculateUserActivity(
+      payload.startDate,
+      payload.endDate,
+    );
+  }
+
+  @MessagePattern('get.active.users.with.age')
+  getActiveUsersWithAge() {
+    return this.userService.getActiveUsersWithAge();
+  }
+
+  @MessagePattern('calculate.goal.stats')
+  calculateGoalStats() {
+    return this.userService.calculateGoalStats();
+  }
+
+  @MessagePattern('calculate.gender.stats')
+  calculateGenderStats() {
+    return this.userService.calculateGenderStats();
   }
 }
