@@ -157,7 +157,30 @@ export class UserService extends PrismaClient implements OnModuleInit {
 
   async updateUser(id: string, updateUserDto: UpdateUserDto) {
     try {
-      await this.findUserById(id)
+      const user = await this.findUserById(id)
+      console.log(user)
+      console.log(updateUserDto.trainingPlanIds)
+      if (updateUserDto.trainingPlanIds?.length) {
+        await firstValueFrom(
+          this.client.send('find.training.plan.by.ids', { ids:updateUserDto.trainingPlanIds})
+        );
+      }
+      
+      console.log(updateUserDto.workoutIds)
+      if (updateUserDto.workoutIds?.length) {
+        await firstValueFrom(
+          this.client.send('find.workout.by.ids', {ids:updateUserDto.workoutIds})
+        );
+      }
+      
+      console.log(updateUserDto.nutritionIds)
+      if (updateUserDto.nutritionIds?.length) {
+        await firstValueFrom(
+          this.client.send('find.nutrition.plan.by.ids', {ids:updateUserDto.nutritionIds})
+        );
+      }
+
+
       const updatedUser = await this.user.update({
         where: { id, isActive: true },
         data: {
