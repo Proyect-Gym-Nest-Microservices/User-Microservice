@@ -4,24 +4,25 @@ import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PaginationDto } from 'src/common';
+import { MongoIdDto } from './dto/mongo-id.dto';
 
 @Controller()
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService) { }
 
   @MessagePattern('create.user')
-  create(@Payload() createUserDto: CreateUserDto) {
-    return this.userService.create(createUserDto);
+  createUser(@Payload() createUserDto: CreateUserDto) {
+    return this.userService.createUser(createUserDto);
   }
 
   @MessagePattern('find.all.users')
-  findAll(@Payload() paginationDto:PaginationDto) {
-    return this.userService.findAll(paginationDto);
+  findAllUser(@Payload() paginationDto: PaginationDto) {
+    return this.userService.findAllUser(paginationDto);
   }
 
   @MessagePattern('find.user.by.id')
-  findById(@Payload() id: string) {
-    return this.userService.findById(id);
+  findById(@Payload() mongoIdDto: MongoIdDto) {
+    return this.userService.findUserById(mongoIdDto.id);
   }
   @MessagePattern('find.user.by.email')
   findByEmail(@Payload() email: string) {
@@ -29,15 +30,27 @@ export class UserController {
   }
 
   @MessagePattern('update.user')
-  update(@Payload() payload: { id: string, updateUserDto: UpdateUserDto }) {
-    return this.userService.update( payload.id, payload.updateUserDto);
+  updateUser(@Payload() payload: { id: string, updateUserDto: UpdateUserDto }) {
+    return this.userService.updateUser(payload.id, payload.updateUserDto);
   }
 
   @MessagePattern('remove.user')
-  remove(@Payload() id: string) {
-    return this.userService.remove(id);
+  removeUser(@Payload() mongoIdDto: MongoIdDto) {
+    return this.userService.removeUser(mongoIdDto.id);
   }
 
+  @MessagePattern('get.user.workouts')
+  getUserWorkouts(@Payload() mongoIdDto: MongoIdDto) {
+    return this.userService.getUserWorkouts(mongoIdDto.id);
+  }
+  @MessagePattern('get.user.training.plans')
+  getUserTrainingPlans(@Payload() mongoIdDto: MongoIdDto ) {
+    return this.userService.getUserTrainingPlans(mongoIdDto.id);
+  }
+  @MessagePattern('get.user.nutritions')
+  getUserNutritions(@Payload() mongoIdDto: MongoIdDto ) {
+    return this.userService.getUserNutritions(mongoIdDto.id);
+  }
 
   @MessagePattern('calculate.total.users')
   calculateTotalUsers() {

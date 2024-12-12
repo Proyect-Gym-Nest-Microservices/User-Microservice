@@ -1,15 +1,23 @@
-import { HttpStatus, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaClient } from '@prisma/client';
 import { PaginationDto } from 'src/common';
-import { RpcException } from '@nestjs/microservices';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { Gender, Goal, UserType } from './enums/user.enum';
+import { NATS_SERVICE } from 'src/config';
+import { firstValueFrom, TimeoutError } from 'rxjs';
 
 @Injectable()
 export class UserService extends PrismaClient implements OnModuleInit {
 
   private readonly logger = new Logger('User-Service');
+
+  constructor(
+    @Inject(NATS_SERVICE) private readonly client: ClientProxy
+  ) {
+    super()
+  }
 
 
   onModuleInit() {
@@ -17,8 +25,51 @@ export class UserService extends PrismaClient implements OnModuleInit {
     this.logger.log('MongoDb connected')
   }
 
+  private handleError(error: any, defaultMessage: string, httpStatus: HttpStatus) {
+    if (error instanceof RpcException) {
+      throw error;
+    }
+    if (error instanceof TimeoutError) {
+      throw new RpcException({
+        status: HttpStatus.GATEWAY_TIMEOUT,
+        message: 'Operation timed out',
+      });
+    }
+    throw new RpcException({
+      status: HttpStatus.INTERNAL_SERVER_ERROR || httpStatus,
+      message: error.message || defaultMessage,
+    });
+  }
 
-  async create(createUserDto: CreateUserDto) {
+  private async findUserResourceIds(
+    userId: string,
+    resourceIdKey: 'workoutIds' | 'trainingPlanIds' | 'nutritionIds'
+  ): Promise<string[]> {
+    const user = await this.user.findUnique({
+      where: { id: userId },
+      select: { [resourceIdKey]: true }
+    });
+
+    if (!user) {
+      throw new RpcException({
+        message: `User with id ${userId} not found`,
+        status: HttpStatus.NOT_FOUND
+      });
+    }
+
+    return user[resourceIdKey] || [];
+  }
+
+  private async fetchResourcesByIds(pattern: string, ids: string[]) {
+    if (ids.length === 0) return [];
+
+    return await firstValueFrom(
+      this.client.send(pattern, { ids })
+    );
+  }
+
+
+  async createUser(createUserDto: CreateUserDto) {
     try {
       const user = await this.user.findUnique({
         where: {
@@ -38,17 +89,15 @@ export class UserService extends PrismaClient implements OnModuleInit {
       })
       return newUser;
     } catch (error) {
-      if (error instanceof RpcException) {
-        throw error;
-      }
-      throw new RpcException({
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Internal server error'
-      })
+      this.handleError(
+        error,
+        'Internal server error creating user',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      )
     }
   }
 
-  async findAll(paginationDto: PaginationDto) {
+  async findAllUser(paginationDto: PaginationDto) {
     const { limit, page } = paginationDto
     const totalUsers = await this.user.count({ where: { isActive: true } });
     const lastPage = Math.ceil(totalUsers / limit)
@@ -78,17 +127,15 @@ export class UserService extends PrismaClient implements OnModuleInit {
       return user;
 
     } catch (error) {
-      if (error instanceof RpcException) {
-        throw error;
-      }
-      throw new RpcException({
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Internal server error'
-      })
+      this.handleError(
+        error,
+        'Internal server error when searching for user by email',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      )
     }
   }
 
-  async findById(id: string) {
+  async findUserById(id: string) {
     try {
       const user = await this.user.findUnique({ where: { id, isActive: true } })
       if (!user) {
@@ -100,24 +147,22 @@ export class UserService extends PrismaClient implements OnModuleInit {
       return user;
 
     } catch (error) {
-      if (error instanceof RpcException) {
-        throw error;
-      }
-      throw new RpcException({
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Internal server error'
-      })
+      this.handleError(
+        error,
+        'Internal server error finding user',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      )
     }
   }
 
-  async update(id:string, updateUserDto: UpdateUserDto) {
+  async updateUser(id: string, updateUserDto: UpdateUserDto) {
     try {
-      await this.findById(id)
+      await this.findUserById(id)
       const updatedUser = await this.user.update({
         where: { id, isActive: true },
-        data: { 
+        data: {
           ...updateUserDto,
-          updatedAt: new Date() 
+          updatedAt: new Date()
         },
       });
 
@@ -133,46 +178,84 @@ export class UserService extends PrismaClient implements OnModuleInit {
       };;
 
     } catch (error) {
-      if (error instanceof RpcException) {
-        throw error;
-      }
-      throw new RpcException({
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Internal server error',
-      });
+      this.handleError(
+        error,
+        'Internal server error updating user',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      )
     }
   }
 
-  async remove(id: string) {
+  async removeUser(id: string) {
     try {
       const updatedUser = await this.user.update({
         where: { id, isActive: true },
-        data: { 
+        data: {
           isActive: false,
-          updatedAt: new Date() 
+          updatedAt: new Date()
         },
       });
-  
+
       if (!updatedUser) {
         throw new RpcException({
           message: `User with id ${id} not found or already inactive`,
           status: HttpStatus.NOT_FOUND,
         });
       }
-  
+
       return {
         success: true,
         message: `User with id ${id} has been deactivated`
       };
-  
+
     } catch (error) {
-      if (error instanceof RpcException) {
-        throw error;
-      }
-      throw new RpcException({
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Internal server error',
-      });
+      this.handleError(
+        error,
+        'Internal server error deleting user',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      )
+    }
+  }
+
+
+
+  async getUserWorkouts(userId: string) {
+    try {
+      const workoutIds = await this.findUserResourceIds(userId, 'workoutIds');
+      const workouts = await this.fetchResourcesByIds('find.workout.by.ids', workoutIds);
+      return workouts;
+    } catch (error) {
+      this.handleError(
+        error,
+        'Internal server error while fetching workouts',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+  async getUserTrainingPlans(userId: string) {
+    try {
+      const trainingPlanIds = await this.findUserResourceIds(userId, 'trainingPlanIds');
+      const trainingPlans = await this.fetchResourcesByIds('find.training.plan.by.ids', trainingPlanIds);
+      return trainingPlans;
+    } catch (error) {
+      this.handleError(
+        error,
+        'Internal server error while fetching training plans',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+  async getUserNutritions(userId: string) {
+    try {
+      const nutritionIds = await this.findUserResourceIds(userId, 'nutritionIds');
+      const nutritions = await this.fetchResourcesByIds('find.nutrition.plan.by.ids', nutritionIds);
+      return nutritions;
+    } catch (error) {
+      this.handleError(
+        error,
+        'Internal server error while fetching nutritions',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
   }
 
@@ -182,11 +265,11 @@ export class UserService extends PrismaClient implements OnModuleInit {
         where: { isActive: true }
       });
     } catch (error) {
-      this.logger.error('Error calculating total users:', error);
-      throw new RpcException({
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Error calculating total users'
-      });
+      this.handleError(
+        error,
+        'Error calculating total users',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      )
     }
   }
 
@@ -202,11 +285,11 @@ export class UserService extends PrismaClient implements OnModuleInit {
         }
       });
     } catch (error) {
-      this.logger.error('Error calculating new users:', error);
-      throw new RpcException({
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Error calculating new users statistics'
-      });
+      this.handleError(
+        error,
+        'Error calculating new users statistics',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      )
     }
   }
 
@@ -227,15 +310,15 @@ export class UserService extends PrismaClient implements OnModuleInit {
 
       return { activeUsers, inactiveUsers };
     } catch (error) {
-      this.logger.error('Error calculating user activity:', error);
-      throw new RpcException({
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Error calculating user activity statistics'
-      });
+      this.handleError(
+        error,
+        'Error calculating user activity statistics',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      )
     }
   }
 
-  
+
   async getActiveUsersWithAge() {
     try {
       const users = await this.user.findMany({
@@ -249,14 +332,14 @@ export class UserService extends PrismaClient implements OnModuleInit {
           },
         },
       });
-  
+
       return users;
     } catch (error) {
-      this.logger.error('Error retrieving active users with age:', error);
-      throw new RpcException({
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'An error occurred while retrieving active users with age.',
-      });
+      this.handleError(
+        error,
+        'An error occurred while retrieving active users with age.',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      )
     }
   }
 
@@ -270,7 +353,7 @@ export class UserService extends PrismaClient implements OnModuleInit {
         where: {
           isActive: true,
           goal: {
-            not:null
+            not: null
           }
         }
       });
@@ -280,15 +363,15 @@ export class UserService extends PrismaClient implements OnModuleInit {
         count: stat._count.goal
       }));
     } catch (error) {
-      this.logger.error('Error calculating goal stats:', error);
-      throw new RpcException({
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Error calculating goal statistics'
-      });
+      this.handleError(
+        error,
+        'Error calculating goal statistics',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      )
     }
   }
 
-  async calculateGenderStats(){
+  async calculateGenderStats() {
     try {
       const genderCounts = await this.user.groupBy({
         by: ['gender'],
@@ -298,7 +381,7 @@ export class UserService extends PrismaClient implements OnModuleInit {
         where: {
           isActive: true,
           gender: {
-            not:null
+            not: null
           }
         }
       });
@@ -308,12 +391,12 @@ export class UserService extends PrismaClient implements OnModuleInit {
         count: stat._count.gender
       }));
     } catch (error) {
-      this.logger.error('Error calculating gender stats:', error);
-      throw new RpcException({
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        message: 'Error calculating gender statistics'
-      });
+      this.handleError(
+        error,
+        'Error calculating gender statistics',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      )
     }
   }
-  
+
 }
