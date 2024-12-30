@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
   provider = "prisma-client-js"
@@ -21,14 +16,15 @@ model User {
   password     String
   age          Int?
   gender       Gender?
-  lastLogin   DateTime?
-  weight       Float? // Peso del usuario
+  lastLogin    DateTime?
+  weight       Float?
   height       Float?
-  fitnessLevel FitnessLevel? // Nivel de estado fisico
-  goal         Goal? // Objetivo del usuario (e.g. perder peso, ganar músculo)
-  injury       String? // Lesion
+  fitnessLevel FitnessLevel?
+  goal         Goal?
+  injury       String?
   userType     UserType      @default(STUDENT)
 
+  rating Rating[]
   // Para agregar a favoritos 
   // Referencias a otros microservicios, estos IDs son usados para hacer peticiones a los microservicios de Workout, Nutrition y Training Plan
   nutritionIds    String[] @default([])
@@ -37,9 +33,32 @@ model User {
 
   roles Role[] @default([USER_ROLE])
 
-  isActive Boolean  @default(true)
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+}
+
+model Rating {
+  id         String     @id @default(auto()) @map("_id") @db.ObjectId
+  score      Float      @default(0)
+  userId     String     @db.ObjectId
+  targetId   String     // exerciseId, trainingId, workoutId, equipmentId, nutritionId
+  targetType TargetType
+  user       User       @relation(fields: [userId], references: [id])
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@unique([userId, targetId, targetType])
+  @@map("ratings")
+}
+
+enum TargetType {
+  WORKOUT
+  TRAINING
+  EXERCISE
+  EQUIPMENT
+  NUTRITION
 }
 
 enum Role {

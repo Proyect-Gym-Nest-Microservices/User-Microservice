@@ -41,26 +41,7 @@ export class UserService extends PrismaClient implements OnModuleInit {
     });
   }
 
-  private async findUserResourceIds(
-    userId: string,
-    resourceIdKey: 'workoutIds' | 'trainingPlanIds' | 'nutritionIds'
-  ): Promise<string[]> {
-    const user = await this.user.findUnique({
-      where: { id: userId },
-      select: { [resourceIdKey]: true }
-    });
-
-    if (!user) {
-      throw new RpcException({
-        message: `User with id ${userId} not found`,
-        status: HttpStatus.NOT_FOUND
-      });
-    }
-
-    return user[resourceIdKey] || [];
-  }
-
-  private async fetchResourcesByIds(pattern: string, ids: string[]) {
+  private async fetchResourcesByIds(pattern: string, ids: string[]|number[]) {
     if (ids.length === 0) return [];
 
     return await firstValueFrom(
@@ -162,21 +143,21 @@ export class UserService extends PrismaClient implements OnModuleInit {
       console.log(updateUserDto.trainingPlanIds)
       if (updateUserDto.trainingPlanIds?.length) {
         await firstValueFrom(
-          this.client.send('find.training.plan.by.ids', { ids:updateUserDto.trainingPlanIds})
+          this.client.send('find.training.plan.by.ids', { ids: updateUserDto.trainingPlanIds })
         );
       }
-      
+
       console.log(updateUserDto.workoutIds)
       if (updateUserDto.workoutIds?.length) {
         await firstValueFrom(
-          this.client.send('find.workout.by.ids', {ids:updateUserDto.workoutIds})
+          this.client.send('find.workout.by.ids', { ids: updateUserDto.workoutIds })
         );
       }
-      
+
       console.log(updateUserDto.nutritionIds)
       if (updateUserDto.nutritionIds?.length) {
         await firstValueFrom(
-          this.client.send('find.nutrition.plan.by.ids', {ids:updateUserDto.nutritionIds})
+          this.client.send('find.nutrition.plan.by.ids', { ids: updateUserDto.nutritionIds })
         );
       }
 
@@ -244,8 +225,19 @@ export class UserService extends PrismaClient implements OnModuleInit {
 
   async getUserWorkouts(userId: string) {
     try {
-      const workoutIds = await this.findUserResourceIds(userId, 'workoutIds');
-      const workouts = await this.fetchResourcesByIds('find.workout.by.ids', workoutIds);
+      const user = await this.user.findUnique({
+        where: { id: userId },
+        select:{workoutIds:true}
+      })
+      if (!user) {
+        throw new RpcException({
+          message: `User with id ${userId} not found`,
+          status: HttpStatus.NOT_FOUND
+        });
+      }
+
+
+      const workouts = await this.fetchResourcesByIds('find.workout.by.ids', user.workoutIds);
       return workouts;
     } catch (error) {
       this.handleError(
@@ -257,8 +249,18 @@ export class UserService extends PrismaClient implements OnModuleInit {
   }
   async getUserTrainingPlans(userId: string) {
     try {
-      const trainingPlanIds = await this.findUserResourceIds(userId, 'trainingPlanIds');
-      const trainingPlans = await this.fetchResourcesByIds('find.training.plan.by.ids', trainingPlanIds);
+      const user = await this.user.findUnique({
+        where: { id: userId },
+        select:{trainingPlanIds:true}
+      })
+      if (!user) {
+        throw new RpcException({
+          message: `User with id ${userId} not found`,
+          status: HttpStatus.NOT_FOUND
+        });
+      }
+
+      const trainingPlans = await this.fetchResourcesByIds('find.training.plan.by.ids', user.trainingPlanIds);
       return trainingPlans;
     } catch (error) {
       this.handleError(
@@ -270,8 +272,17 @@ export class UserService extends PrismaClient implements OnModuleInit {
   }
   async getUserNutritions(userId: string) {
     try {
-      const nutritionIds = await this.findUserResourceIds(userId, 'nutritionIds');
-      const nutritions = await this.fetchResourcesByIds('find.nutrition.plan.by.ids', nutritionIds);
+      const user = await this.user.findUnique({
+        where: { id: userId },
+        select:{nutritionIds:true}
+      })
+      if (!user) {
+        throw new RpcException({
+          message: `User with id ${userId} not found`,
+          status: HttpStatus.NOT_FOUND
+        });
+      }
+      const nutritions = await this.fetchResourcesByIds('find.nutrition.plan.by.ids', user.nutritionIds);
       return nutritions;
     } catch (error) {
       this.handleError(
@@ -421,5 +432,55 @@ export class UserService extends PrismaClient implements OnModuleInit {
       )
     }
   }
+  //async calculateTargetGenderStats(
+  //  targetId: string,
+  //  targetType: TargetType,
+  //  dateRange?: { startDate: Date; endDate: Date }
+  //) {
+  //  try {
+
+
+  //    const genderStats = await this.rating.findMany({
+  //      where: {
+  //        targetId,
+  //        targetType,
+  //        createdAt: {
+  //          gte: dateRange.startDate,
+  //          lte: dateRange.endDate
+  //        }
+  //      },
+  //      select: {
+  //        user: {
+  //          select: {
+  //            gender: true,
+  //          },
+  //        },
+  //      },
+  //    });
+
+  //    const groupedStats = genderStats.reduce((acc, curr) => {
+  //      const gender = curr.user.gender;
+  //      acc[gender] = (acc[gender] || 0) + 1;
+  //      return acc;
+  //    }, {} as Record<string, number>);
+
+  //    return Object.entries(groupedStats).map(([gender, count]) => ({
+  //      gender: gender === "null" ? null : gender as Gender,
+  //      count
+  //    }));
+
+  //  } catch (error) {
+  //    this.handleError(
+  //      error,
+  //      'Error calculating target gender statistics',
+  //      HttpStatus.INTERNAL_SERVER_ERROR
+  //    );
+  //  }
+  //}
+
+
+  //--- equipment
+
+
 
 }
