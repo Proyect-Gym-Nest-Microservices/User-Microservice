@@ -1,5 +1,5 @@
 import { IsEnum, IsInt, IsPositive } from 'class-validator';
-import { TargetType } from 'src/common/enums/target-type.enum';
+import { TargetType } from '../../common/enums/target-type.enum';
 
 export class GenderStatsByTargetDto {
     

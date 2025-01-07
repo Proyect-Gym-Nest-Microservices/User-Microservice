@@ -1,7 +1,7 @@
 import { HttpStatus, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { CreateRatingDto } from './dto/create-rating.dto';
 import { PrismaClient } from '@prisma/client';
-import { NATS_SERVICE } from 'src/config';
+import { NATS_SERVICE } from '../config/services.config';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom, TimeoutError } from 'rxjs';
 import { TargetType } from '../common/enums/target-type.enum';

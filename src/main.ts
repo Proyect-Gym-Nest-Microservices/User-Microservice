@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { envs } from './config';
+import { envs } from './config/envs.config';
 import { Logger, ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {

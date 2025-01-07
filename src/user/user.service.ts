@@ -2,10 +2,10 @@ import { HttpStatus, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/co
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaClient, TargetType } from '@prisma/client';
-import { PaginationDto } from 'src/common';
+import { PaginationDto } from '../common/dto/pagination.dto';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { Gender, Goal } from './enums/user.enum';
-import { NATS_SERVICE } from 'src/config';
+import { NATS_SERVICE } from '../config/services.config';
 import { firstValueFrom, TimeoutError } from 'rxjs';
 
 @Injectable()
