@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { NATS_SERVICE } from 'src/config';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom, TimeoutError } from 'rxjs';
-import { TargetType } from './enums/target-type.enum';
+import { TargetType } from '../common/enums/target-type.enum';
 
 @Injectable()
 export class RatingService extends PrismaClient implements OnModuleInit {
@@ -37,7 +37,7 @@ export class RatingService extends PrismaClient implements OnModuleInit {
     });
   }
 
-  private async calculateAverageScore(ratings: { score: number }[], targetId: string) {
+  private async calculateAverageScore(ratings: { score: number }[], targetId: number) {
     if (ratings.length === 0) {
       return { score: 0, totalRatings: 0, targetId: targetId };
     }
@@ -52,7 +52,7 @@ export class RatingService extends PrismaClient implements OnModuleInit {
     };
   }
 
-  private async updateTargetScore(tx:any,targetType: TargetType, targetId: string) {
+  private async updateTargetScore(tx:any,targetType: TargetType, targetId: number) {
     try {
 
       const ratings = await tx.rating.findMany({

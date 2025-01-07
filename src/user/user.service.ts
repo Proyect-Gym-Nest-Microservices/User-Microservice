@@ -1,10 +1,10 @@
 import { HttpStatus, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, TargetType } from '@prisma/client';
 import { PaginationDto } from 'src/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { Gender, Goal, UserType } from './enums/user.enum';
+import { Gender, Goal } from './enums/user.enum';
 import { NATS_SERVICE } from 'src/config';
 import { firstValueFrom, TimeoutError } from 'rxjs';
 
@@ -17,12 +17,13 @@ export class UserService extends PrismaClient implements OnModuleInit {
     @Inject(NATS_SERVICE) private readonly client: ClientProxy
   ) {
     super()
+
   }
 
-
-  onModuleInit() {
+  async onModuleInit() {
     this.$connect();
     this.logger.log('MongoDb connected')
+
   }
 
   private handleError(error: any, defaultMessage: string, httpStatus: HttpStatus) {
@@ -41,7 +42,7 @@ export class UserService extends PrismaClient implements OnModuleInit {
     });
   }
 
-  private async fetchResourcesByIds(pattern: string, ids: string[]|number[]) {
+  private async fetchResourcesByIds(pattern: string, ids: string[] | number[]) {
     if (ids.length === 0) return [];
 
     return await firstValueFrom(
@@ -139,22 +140,18 @@ export class UserService extends PrismaClient implements OnModuleInit {
   async updateUser(id: string, updateUserDto: UpdateUserDto) {
     try {
       const user = await this.findUserById(id)
-      console.log(user)
-      console.log(updateUserDto.trainingPlanIds)
       if (updateUserDto.trainingPlanIds?.length) {
         await firstValueFrom(
           this.client.send('find.training.plan.by.ids', { ids: updateUserDto.trainingPlanIds })
         );
       }
 
-      console.log(updateUserDto.workoutIds)
       if (updateUserDto.workoutIds?.length) {
         await firstValueFrom(
           this.client.send('find.workout.by.ids', { ids: updateUserDto.workoutIds })
         );
       }
 
-      console.log(updateUserDto.nutritionIds)
       if (updateUserDto.nutritionIds?.length) {
         await firstValueFrom(
           this.client.send('find.nutrition.plan.by.ids', { ids: updateUserDto.nutritionIds })
@@ -227,7 +224,7 @@ export class UserService extends PrismaClient implements OnModuleInit {
     try {
       const user = await this.user.findUnique({
         where: { id: userId },
-        select:{workoutIds:true}
+        select: { workoutIds: true }
       })
       if (!user) {
         throw new RpcException({
@@ -251,7 +248,7 @@ export class UserService extends PrismaClient implements OnModuleInit {
     try {
       const user = await this.user.findUnique({
         where: { id: userId },
-        select:{trainingPlanIds:true}
+        select: { trainingPlanIds: true }
       })
       if (!user) {
         throw new RpcException({
@@ -274,7 +271,7 @@ export class UserService extends PrismaClient implements OnModuleInit {
     try {
       const user = await this.user.findUnique({
         where: { id: userId },
-        select:{nutritionIds:true}
+        select: { nutritionIds: true }
       })
       if (!user) {
         throw new RpcException({
@@ -293,194 +290,137 @@ export class UserService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async calculateTotalUsers(): Promise<number> {
+  async calculateUserStatistics(startDate: Date, endDate: Date) {
     try {
-      return await this.user.count({
-        where: { isActive: true }
-      });
+      const [totalUsers, newUsers, activeUsersData, usersWithAge, goalStats, genderCounts] = await Promise.all([
+        this.user.count({
+          where: {
+            isActive: true,
+          }
+        }),
+        this.user.count({
+          where: {
+            createdAt: { gte: startDate, lte: endDate },
+            isActive: true
+          }
+        }),
+        this.user.count({
+          where: {
+            lastLogin: { gte: startDate, lte: endDate },
+            isActive: true
+          }
+        }),
+        this.user.findMany({
+          select: { age: true },
+          where: {
+            isActive: true, age: { not: null },
+          }
+        }),
+        this.user.groupBy({
+          by: ['goal'],
+          _count: { goal: true },
+          where: {
+            isActive: true, goal: { not: null },
+          }
+        }),
+        this.user.groupBy({
+          by: ['gender'],
+          _count: { gender: true },
+          where: {
+            isActive: true, gender: { not: null },
+          }
+        })
+      ]);
+
+      return {
+        totalUsers,
+        newUsers,
+        userActivity: {
+          activeUsers: activeUsersData,
+          inactiveUsers: totalUsers - activeUsersData
+        },
+        ageRange: usersWithAge,
+        goalStats: goalStats.map(stat => ({
+          goal: stat.goal as Goal,
+          count: stat._count.goal
+        })),
+        genderStats: genderCounts.map(stat => ({
+          gender: stat.gender as Gender,
+          count: stat._count.gender,
+        }))
+      };
+
     } catch (error) {
       this.handleError(
         error,
-        'Error calculating total users',
+        'Error retrieving user statistics',
         HttpStatus.INTERNAL_SERVER_ERROR
-      )
+      );
     }
   }
 
-  async calculateNewUsers(startDate: Date, endDate: Date): Promise<number> {
+
+
+  async calculateGenderStatsByTarget(targetType: TargetType, targetId: number) {
     try {
-      return await this.user.count({
+
+      const userStats = await this.user.findMany({
         where: {
-          createdAt: {
-            gte: startDate,
-            lte: endDate
-          },
-          isActive: true
-        }
-      });
-    } catch (error) {
-      this.handleError(
-        error,
-        'Error calculating new users statistics',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      )
-    }
-  }
-
-  async calculateUserActivity(startDate: Date, endDate: Date) {
-    try {
-      const activeUsers = await this.user.count({
-        where: {
-          lastLogin: {
-            gte: startDate,
-            lte: endDate
-          },
-          isActive: true
-        }
-      });
-
-      const totalUsers = await this.calculateTotalUsers();
-      const inactiveUsers = totalUsers - activeUsers;
-
-      return { activeUsers, inactiveUsers };
-    } catch (error) {
-      this.handleError(
-        error,
-        'Error calculating user activity statistics',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      )
-    }
-  }
-
-
-  async getActiveUsersWithAge() {
-    try {
-      const users = await this.user.findMany({
+          isActive: true,
+          gender: { not: null },
+          rating: {
+            some: { targetType, targetId }
+          }
+        },
         select: {
-          age: true,
-        },
-        where: {
-          isActive: true,
-          age: {
-            not: null,
-          },
-        },
-      });
-
-      return users;
-    } catch (error) {
-      this.handleError(
-        error,
-        'An error occurred while retrieving active users with age.',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      )
-    }
-  }
-
-  async calculateGoalStats() {
-    try {
-      const goalCounts = await this.user.groupBy({
-        by: ['goal'],
-        _count: {
-          goal: true
-        },
-        where: {
-          isActive: true,
-          goal: {
-            not: null
+          gender: true,
+          rating: {
+            where: {
+              targetType,
+              targetId
+            },
+            select: {
+              score: true
+            }
           }
         }
       });
 
-      return goalCounts.map(stat => ({
-        goal: stat.goal as Goal,
-        count: stat._count.goal
-      }));
-    } catch (error) {
-      this.handleError(
-        error,
-        'Error calculating goal statistics',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      )
-    }
-  }
 
-  async calculateGenderStats() {
-    try {
-      const genderCounts = await this.user.groupBy({
-        by: ['gender'],
-        _count: {
-          gender: true
-        },
-        where: {
-          isActive: true,
-          gender: {
-            not: null
-          }
+      const genderStatsMap = new Map();
+
+
+      userStats.forEach(({ gender }) => {
+
+        if (!genderStatsMap.has(gender)) {
+          genderStatsMap.set(gender, {
+            userCount: 0,
+          });
         }
+        const stats = genderStatsMap.get(gender);
+        stats.userCount++;
+
       });
 
-      return genderCounts.map(stat => ({
-        gender: stat.gender as Gender,
-        count: stat._count.gender
+      const results = Array.from(genderStatsMap.entries()).map(([gender, stats]) => ({
+        gender: gender as Gender,
+        count: stats.userCount,
+        targetType,
+        targetId
       }));
+
+      return results;
+
     } catch (error) {
       this.handleError(
         error,
-        'Error calculating gender statistics',
+        `Error calculating gender statistics for ${targetType}`,
         HttpStatus.INTERNAL_SERVER_ERROR
-      )
+      );
     }
   }
-  //async calculateTargetGenderStats(
-  //  targetId: string,
-  //  targetType: TargetType,
-  //  dateRange?: { startDate: Date; endDate: Date }
-  //) {
-  //  try {
-
-
-  //    const genderStats = await this.rating.findMany({
-  //      where: {
-  //        targetId,
-  //        targetType,
-  //        createdAt: {
-  //          gte: dateRange.startDate,
-  //          lte: dateRange.endDate
-  //        }
-  //      },
-  //      select: {
-  //        user: {
-  //          select: {
-  //            gender: true,
-  //          },
-  //        },
-  //      },
-  //    });
-
-  //    const groupedStats = genderStats.reduce((acc, curr) => {
-  //      const gender = curr.user.gender;
-  //      acc[gender] = (acc[gender] || 0) + 1;
-  //      return acc;
-  //    }, {} as Record<string, number>);
-
-  //    return Object.entries(groupedStats).map(([gender, count]) => ({
-  //      gender: gender === "null" ? null : gender as Gender,
-  //      count
-  //    }));
-
-  //  } catch (error) {
-  //    this.handleError(
-  //      error,
-  //      'Error calculating target gender statistics',
-  //      HttpStatus.INTERNAL_SERVER_ERROR
-  //    );
-  //  }
-  //}
-
-
-  //--- equipment
-
 
 
 }
+
+

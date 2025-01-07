@@ -5,6 +5,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PaginationDto } from 'src/common';
 import { MongoIdDto } from './dto/mongo-id.dto';
+import { GenderStatsByTargetDto } from './dto/gender-stats-by-target.dto';
 
 @Controller()
 export class UserController {
@@ -52,43 +53,13 @@ export class UserController {
     return this.userService.getUserNutritions(mongoIdDto.id);
   }
 
-  @MessagePattern('calculate.total.users')
-  calculateTotalUsers() {
-    return this.userService.calculateTotalUsers();
+  @MessagePattern('calculate.gender.stats.by.target')
+  calculateGenderStatsByTarget(@Payload() genderStatsByTargetDto: GenderStatsByTargetDto) {
+    const { targetId, targetType} = genderStatsByTargetDto;
+    return this.userService.calculateGenderStatsByTarget(targetType,targetId);
   }
-
-  @MessagePattern('calculate.new.users')
-  calculateNewUsers(
-    @Payload() payload: { startDate: Date; endDate: Date },
-  ) {
-    return this.userService.calculateNewUsers(
-      payload.startDate,
-      payload.endDate,
-    );
-  }
-
-  @MessagePattern('calculate.user.activity')
-  calculateUserActivity(
-    @Payload() payload: { startDate: Date; endDate: Date },
-  ) {
-    return this.userService.calculateUserActivity(
-      payload.startDate,
-      payload.endDate,
-    );
-  }
-
-  @MessagePattern('get.active.users.with.age')
-  getActiveUsersWithAge() {
-    return this.userService.getActiveUsersWithAge();
-  }
-
-  @MessagePattern('calculate.goal.stats')
-  calculateGoalStats() {
-    return this.userService.calculateGoalStats();
-  }
-
-  @MessagePattern('calculate.gender.stats')
-  calculateGenderStats() {
-    return this.userService.calculateGenderStats();
+  @MessagePattern('calculate.user.stats')
+  calculateUserStatistics(@Payload() payload:{ startDate: Date, endDate: Date}) {
+    return this.userService.calculateUserStatistics(payload.startDate,payload.endDate);
   }
 }

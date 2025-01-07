@@ -1,5 +1,5 @@
 import { IsEnum, IsMongoId, IsNotEmpty, IsNumber, IsString, Max, Min } from "class-validator";
-import { TargetType } from "../enums/target-type.enum";
+import { TargetType } from "../../common/enums/target-type.enum";
 
 export class CreateRatingDto {
 
@@ -14,8 +14,8 @@ export class CreateRatingDto {
     userId: string;
 
     @IsNotEmpty()
-    @IsString()
-    targetId: string;
+    @IsNumber()
+    targetId: number;
 
     @IsEnum(TargetType)
     targetType: TargetType;

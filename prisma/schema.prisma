@@ -43,7 +43,7 @@ model Rating {
   id         String     @id @default(auto()) @map("_id") @db.ObjectId
   score      Float      @default(0)
   userId     String     @db.ObjectId
-  targetId   String     // exerciseId, trainingId, workoutId, equipmentId, nutritionId
+  targetId   Int     // exerciseId, trainingId, workoutId, equipmentId, nutritionId
   targetType TargetType
   user       User       @relation(fields: [userId], references: [id])
   createdAt  DateTime   @default(now())
