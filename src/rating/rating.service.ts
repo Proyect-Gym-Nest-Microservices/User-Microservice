@@ -32,7 +32,7 @@ export class RatingService extends PrismaClient implements OnModuleInit {
       });
     }
     throw new RpcException({
-      status: HttpStatus.INTERNAL_SERVER_ERROR || httpStatus,
+      status: error.status || HttpStatus.INTERNAL_SERVER_ERROR || httpStatus,
       message: error.message || defaultMessage,
     });
   }
