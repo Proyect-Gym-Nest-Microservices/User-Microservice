@@ -365,41 +365,19 @@ export class UserService extends PrismaClient implements OnModuleInit {
     try {
 
       const userStats = await this.user.findMany({
-        where: {
-          isActive: true,
-          gender: { not: null },
-          rating: {
-            some: { targetType, targetId }
-          }
-        },
-        select: {
-          gender: true,
-          rating: {
-            where: {
-              targetType,
-              targetId
-            },
-            select: {
-              score: true
-            }
-          }
-        }
+        where: {isActive: true,gender: { not: null }, rating: { some: { targetType, targetId }}},
+        select: {gender: true, rating: { where: {targetType,targetId}, select: {score: true}}}
       });
 
-
       const genderStatsMap = new Map();
-
 
       userStats.forEach(({ gender }) => {
 
         if (!genderStatsMap.has(gender)) {
-          genderStatsMap.set(gender, {
-            userCount: 0,
-          });
+          genderStatsMap.set(gender, { userCount: 0, });
         }
         const stats = genderStatsMap.get(gender);
         stats.userCount++;
-
       });
 
       const results = Array.from(genderStatsMap.entries()).map(([gender, stats]) => ({
