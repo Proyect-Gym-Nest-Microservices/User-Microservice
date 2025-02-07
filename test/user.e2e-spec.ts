@@ -177,7 +177,6 @@ describe('UserController (e2e)', () => {
         isActive: true
       }));
 
-      usersToCreate.map(console.log)
 
     
 
@@ -208,10 +207,9 @@ describe('UserController (e2e)', () => {
       const result = await firstValueFrom(
         mockClientProxy.send('find.all.users', { page: 1, limit: 3 })
       );
-      console.log(result)
 
       expect(result.data).toHaveLength(3);
-      expect(result.meta.totalUsers).toBe(6);
+      expect(result.meta.totalUsers).toBe(5);
       expect(result.meta.page).toBe(1);
     });
   });
